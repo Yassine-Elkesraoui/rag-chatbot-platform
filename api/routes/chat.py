@@ -1,72 +1,115 @@
 """
-Chat endpoint for the RAG Chatbot API.
+chat.py
+───────
+Chat endpoint route handler.
 
-This module defines all routes related to the chat functionality.
-For now, it contains a single POST /chat endpoint that returns
-a placeholder response. Later, this endpoint will be connected
-to the real RAG pipeline (LangChain + ChromaDB + OpenAI).
+Exposes POST /chat, which forwards user questions to the configured
+Large Language Model (Phi-3 Mini via Ollama) and returns the generated
+answer.
 
-Architecture note:
-    This module uses FastAPI's APIRouter to keep chat-related logic
-    isolated from the main application file. The router is registered
-    in api/main.py via app.include_router().
+This module sits in the Routes layer of the four-tier architecture:
+
+    Routes (this file)
+        ↓
+    Services (OllamaService)
+        ↓
+    Ollama runtime + Phi-3 Mini
+
+The endpoint is intentionally thin: it validates the request via Pydantic,
+delegates the actual AI work to OllamaService, translates service-level
+exceptions into appropriate HTTP responses, and returns the result.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.models.schemas import ChatRequest, ChatResponse
-from api.utils.logger import logger
+from api.services.ollama_service import (
+    OllamaConnectionError,
+    OllamaModelError,
+    OllamaService,
+    get_ollama_service,
+)
+from api.utils.logger import setup_logger
 
 
-# Create a router instance specific to this module.
-# The 'tags' parameter groups all endpoints from this router under "Chat"
-# in the Swagger UI, making the documentation cleaner.
+# ────────────────────────────────────────────────────────────────────────
+# Module-level logger
+# ────────────────────────────────────────────────────────────────────────
+logger = setup_logger(__name__)
+
+
+# ────────────────────────────────────────────────────────────────────────
+# Router declaration
+# ────────────────────────────────────────────────────────────────────────
 router = APIRouter(tags=["Chat"])
 
 
-@router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
+# ────────────────────────────────────────────────────────────────────────
+# POST /chat — process a user question
+# ────────────────────────────────────────────────────────────────────────
+@router.post(
+    "/chat",
+    response_model=ChatResponse,
+    summary="Send a question to the AI and receive a generated answer",
+    description=(
+        "Forwards the user's question to Microsoft Phi-3 Mini via the "
+        "Ollama runtime, running locally on the deployment host. "
+        "No data is transmitted outside the host, ensuring full "
+        "data sovereignty in compliance with GDPR."
+    ),
+)
+def chat(
+    request: ChatRequest,
+    ollama: OllamaService = Depends(get_ollama_service),
+) -> ChatResponse:
     """
-    Handle a chat request and return an answer.
-
-    For now, the answer is a hardcoded placeholder. In future iterations,
-    this function will:
-        1. Convert the question into an embedding vector
-        2. Retrieve relevant document chunks from ChromaDB
-        3. Build a prompt with the retrieved context
-        4. Call the LLM (OpenAI) to generate a grounded answer
-        5. Return the final answer with source citations
+    Process a chat request by delegating generation to the Ollama service.
 
     Args:
-        request: A ChatRequest object containing the user's question.
-                 Validated automatically by FastAPI/Pydantic.
+        request: Validated request body containing the user's question.
+        ollama: OllamaService instance injected by FastAPI's DI system.
 
     Returns:
-        A ChatResponse object containing the original question,
-        the generated answer, and a status flag.
+        A ChatResponse containing the AI-generated answer.
 
     Raises:
-        422 Unprocessable Entity: Automatically raised by FastAPI
-            if the request body doesn't match the ChatRequest schema.
+        HTTPException 503: If the Ollama runtime is unreachable.
+        HTTPException 500: If the model fails to generate a valid response.
     """
-    # Log the incoming question for traceability.
-    # In production, this helps debug user-reported issues.
-    logger.info(f"Received chat request: '{request.question}'")
+    logger.info("POST /chat | received question (length=%d)", len(request.question))
 
-    # Placeholder logic — to be replaced by the real RAG pipeline
-    fake_answer = (
-        f"You asked: '{request.question}'. "
-        f"The real AI is coming soon!"
-    )
+    try:
+        # Delegate the actual AI generation to the service layer.
+        # The service raises domain-specific exceptions on failure,
+        # which we translate to HTTP responses below.
+        ai_answer: str = ollama.generate_answer(request.question)
 
-    # Log the generated answer for audit purposes
-    logger.info(f"Generated answer: '{fake_answer}'")
+        return ChatResponse(
+    question=request.question,
+    answer=ai_answer,
+    status="success",
+)
 
-    # Build and return the structured response.
-    # Returning a Pydantic object (rather than a plain dict) ensures
-    # the response is validated against the ChatResponse schema.
-    return ChatResponse(
-        question=request.question,
-        answer=fake_answer,
-        status="success"
-    )
+    except OllamaConnectionError as exc:
+        # The Ollama background service is not reachable.
+        # This is a *temporary* infrastructure problem → 503 Service Unavailable.
+        logger.error("Chat failed: Ollama unreachable | %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "The AI service is currently unavailable. "
+                "Please verify that the Ollama runtime is running and try again."
+            ),
+        ) from exc
+
+    except OllamaModelError as exc:
+        # The model itself failed (empty response, context overflow, etc.).
+        # This is an *internal* problem → 500 Internal Server Error.
+        logger.error("Chat failed: model error | %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "The AI model failed to generate a response. "
+                "Please try rephrasing your question or contact support."
+            ),
+        ) from exc

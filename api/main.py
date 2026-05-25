@@ -18,7 +18,7 @@ codebase scalable, secure, and maintainable.
 from fastapi import FastAPI
 
 from api.routes import chat
-from api.utils.config import settings
+from api.utils.config import get_settings
 from api.utils.logger import logger
 
 
@@ -27,6 +27,7 @@ from api.utils.logger import logger
 # in turn read values from the .env file at the project root.
 # This eliminates hardcoded values from the source code and enables
 # environment-specific configuration without code changes.
+settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     description=(
