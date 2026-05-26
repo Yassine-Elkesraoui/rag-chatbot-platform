@@ -50,7 +50,8 @@ class Settings(BaseSettings):
     ollama_model: str = "phi3"
     ollama_temperature: float = 0.7
     ollama_max_tokens: int = 512
-
+# ── Document upload configuration ──────────────────────────────
+    upload_dir: str = "data/uploads"
     # ─── Pydantic configuration ─────────────────────────────────────────
     model_config = SettingsConfigDict(
         env_file=".env",
