@@ -50,8 +50,10 @@ dist/
 logs/
 
 # --- Local data and uploads ---
-data/uploads/
-data/temp/
+data/uploads/*
+!data/uploads/.gitkeep
+data/temp/*
+!data/temp/.gitkeep
 
 # --- Jupyter notebook checkpoints ---
 .ipynb_checkpoints/
