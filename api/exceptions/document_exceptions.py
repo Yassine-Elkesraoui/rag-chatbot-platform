@@ -40,3 +40,30 @@ class DocumentStorageError(DocumentError):
     Unlike validation errors, this is a server-side failure the
     client cannot fix by changing their request.
     """
+
+
+class DocumentNotFoundError(DocumentError):
+    """Raised when a referenced document UUID has no file on disk.
+
+    Examples:
+        - User passes an unknown UUID to /documents/{id}/process
+        - File was deleted between upload and processing
+        - UUID is well-formed but never existed
+
+    Maps to HTTP 404 Not Found in the route layer.
+    """
+
+
+class DocumentParsingError(DocumentError):
+    """Raised when text extraction from a document fails.
+
+    Examples:
+        - PDF is encrypted / password-protected
+        - PDF is corrupted or malformed
+        - Text decoding fails (rare for UTF-8 input)
+        - Underlying parser library raises an unexpected error
+
+    Maps to HTTP 422 Unprocessable Entity. Unlike storage errors,
+    this is a property of the *file content*, not the server state,
+    so the client could try a different file.
+    """

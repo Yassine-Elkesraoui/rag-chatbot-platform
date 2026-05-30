@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     ollama_max_tokens: int = 512
 # ── Document upload configuration ──────────────────────────────
     upload_dir: str = "data/uploads"
+    # ── Document upload configuration ──────────────────────────────
+    upload_dir: str = "data/uploads"
+    # ── Document chunking configuration ────────────────────────────
+    chunk_size: int = 1000
+    chunk_overlap: int = 200            
     # ─── Pydantic configuration ─────────────────────────────────────────
     model_config = SettingsConfigDict(
         env_file=".env",

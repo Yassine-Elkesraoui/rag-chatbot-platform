@@ -15,14 +15,20 @@ batch importer, or a worker queue consumer — all reusing
 DocumentService — without duplicating logic.
 """
 
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from api.exceptions.document_exceptions import (
+    DocumentNotFoundError,
+    DocumentParsingError,
     DocumentStorageError,
     DocumentValidationError,
 )
-from api.models.document_schemas import DocumentResponse
+from api.models.document_schemas import DocumentResponse, ProcessedDocumentResponse
+from api.services.chunking_service import ChunkingService, get_chunking_service
 from api.services.document_service import DocumentService, get_document_service
+from api.services.parsing_service import ParsingService, get_parsing_service
 from api.utils.logger import logger
 
 
@@ -56,7 +62,7 @@ async def upload_document(
     Note:
         This endpoint only stores the file. Parsing, chunking, and
         embedding into the vector database happen in later pipeline
-        stages (Days 10–14).
+        stages.
     """
     try:
         return await service.save_upload(file)
@@ -72,3 +78,65 @@ async def upload_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to save the uploaded file. Please try again.",
         ) from exc
+
+
+@router.post(
+    "/{document_id}/process",
+    response_model=ProcessedDocumentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Parse and chunk an uploaded document",
+    responses={
+        200: {"description": "Document parsed and chunked successfully."},
+        404: {"description": "No document found with the given UUID."},
+        422: {"description": "Document content could not be parsed."},
+    },
+)
+async def process_document(
+    document_id: UUID,
+    parsing_service: ParsingService = Depends(get_parsing_service),
+    chunking_service: ChunkingService = Depends(get_chunking_service),
+) -> ProcessedDocumentResponse:
+    """Parse a previously uploaded document and split it into chunks.
+
+    This endpoint orchestrates the two stages of document preparation:
+      1. Resolve the file on disk by UUID and extract its text content.
+      2. Split the text into overlapping chunks for embedding.
+
+    The endpoint is idempotent: calling it twice for the same document
+    produces the same chunks (modulo configuration changes). No state
+    is persisted yet — chunks are returned in the response only.
+    Day 12 will add ChromaDB persistence.
+
+    Args:
+        document_id: UUID of a previously uploaded document.
+
+    Returns:
+        ProcessedDocumentResponse with the chunks plus summary stats.
+
+    Raises:
+        HTTPException: 404 if the document UUID is unknown.
+        HTTPException: 422 if the document content cannot be parsed.
+    """
+    try:
+        text = parsing_service.parse(document_id)
+        chunks = chunking_service.chunk(document_id, text)
+    except DocumentNotFoundError as exc:
+        logger.warning("Document not found: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except DocumentParsingError as exc:
+        logger.warning("Document parsing failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    total_chars = sum(c.char_count for c in chunks)
+    return ProcessedDocumentResponse(
+        document_id=document_id,
+        total_chars=total_chars,
+        chunk_count=len(chunks),
+        chunks=chunks,
+    ) 

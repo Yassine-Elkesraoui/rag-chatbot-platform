@@ -76,3 +76,91 @@ class DocumentResponse(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC timestamp of when the upload completed.",
     )
+
+
+class DocumentChunk(BaseModel):
+    """A single text chunk extracted from a document.
+
+    Chunks are the unit of indexing and retrieval in the RAG pipeline.
+    Each chunk carries enough metadata to be traced back to its source
+    document and position, which is essential for citation in answers
+    and for debugging retrieval quality.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                "index": 0,
+                "content": "This is the first chunk of the document...",
+                "char_count": 1000,
+            }
+        }
+    )
+
+    document_id: UUID = Field(
+        ...,
+        description="UUID of the source document this chunk was extracted from.",
+    )
+    index: int = Field(
+        ...,
+        ge=0,
+        description="Zero-based position of this chunk within the source document.",
+    )
+    content: str = Field(
+        ...,
+        min_length=1,
+        description="The raw text content of the chunk.",
+    )
+    char_count: int = Field(
+        ...,
+        gt=0,
+        description="Length of the chunk content in characters.",
+    )
+
+
+class ProcessedDocumentResponse(BaseModel):
+    """Response returned after a document has been parsed and chunked.
+
+    Returned by ``POST /documents/{document_id}/process``. Carries the
+    chunks plus summary statistics useful for client-side validation
+    and for inspection during evaluation (chunk count, total chars).
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                "total_chars": 12450,
+                "chunk_count": 14,
+                "chunks": [
+                    {
+                        "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                        "index": 0,
+                        "content": "This is the first chunk...",
+                        "char_count": 1000,
+                    }
+                ],
+            }
+        }
+    )
+
+    document_id: UUID = Field(
+        ...,
+        description="UUID of the processed document.",
+    )
+    total_chars: int = Field(
+        ...,
+        ge=0,
+        description="Total characters of extracted text across all chunks "
+                    "(approximate — overlap is counted in both adjacent chunks).",
+    )
+    chunk_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of chunks produced.",
+    )
+    chunks: list[DocumentChunk] = Field(
+        ...,
+        description="Ordered list of chunks, indexed from 0.",
+    )
