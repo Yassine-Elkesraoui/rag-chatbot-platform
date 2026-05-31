@@ -61,3 +61,5 @@ data/temp/*
 # --- ChromaDB local persistence (for later) ---
 chroma_db/
 *.chroma
+# Embedding model cache (downloaded at runtime from HuggingFace)
+models/    

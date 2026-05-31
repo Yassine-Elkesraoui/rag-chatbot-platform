@@ -67,3 +67,18 @@ class DocumentParsingError(DocumentError):
     this is a property of the *file content*, not the server state,
     so the client could try a different file.
     """
+
+
+class EmbeddingError(DocumentError):
+    """Raised when text-to-vector embedding fails.
+
+    Examples:
+        - Embedding model failed to load (file missing, corrupted, no network)
+        - Out-of-memory during batch encoding
+        - Underlying sentence-transformers raised an unexpected error
+        - Input batch is empty (programmer error, not user input)
+
+    Maps to HTTP 500 Internal Server Error when surfaced through routes.
+    Unlike validation or parsing errors, embedding failures are server-side
+    problems — the client cannot fix them by sending different input.
+    """        

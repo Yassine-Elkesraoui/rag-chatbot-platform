@@ -56,7 +56,14 @@ class Settings(BaseSettings):
     upload_dir: str = "data/uploads"
     # ── Document chunking configuration ────────────────────────────
     chunk_size: int = 1000
-    chunk_overlap: int = 200            
+    chunk_overlap: int = 200   
+    # ── Embedding configuration ────────────────────────────────────
+    embedding_model_name: str = "sentence-transformers/all-MiniLM-L6-v2"
+    embedding_batch_size: int = 32
+    embedding_dimension: int = 384
+    embedding_normalize: bool = True
+    embedding_device: str = "cpu"
+    model_cache_dir: str = "models"                  
     # ─── Pydantic configuration ─────────────────────────────────────────
     model_config = SettingsConfigDict(
         env_file=".env",
