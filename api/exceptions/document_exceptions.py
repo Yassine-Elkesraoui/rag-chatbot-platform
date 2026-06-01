@@ -1,4 +1,4 @@
-"""Custom exceptions for document upload and management.
+﻿"""Custom exceptions for document upload and management.
 
 Following the same pattern as ollama_exceptions: domain-specific
 exceptions that the route layer translates into appropriate HTTP
@@ -7,12 +7,7 @@ status codes. This keeps business logic decoupled from HTTP concerns.
 
 
 class DocumentError(Exception):
-    """Base exception for all document-related errors.
-
-    Catching this in route handlers catches every document failure mode
-    at once, while still allowing specific subclasses to be caught first
-    for more granular HTTP responses.
-    """
+    """Base exception for all document-related errors."""
 
 
 class DocumentValidationError(DocumentError):
@@ -37,8 +32,6 @@ class DocumentStorageError(DocumentError):
         - I/O error during streaming write
 
     Maps to HTTP 500 Internal Server Error in the route layer.
-    Unlike validation errors, this is a server-side failure the
-    client cannot fix by changing their request.
     """
 
 
@@ -63,9 +56,7 @@ class DocumentParsingError(DocumentError):
         - Text decoding fails (rare for UTF-8 input)
         - Underlying parser library raises an unexpected error
 
-    Maps to HTTP 422 Unprocessable Entity. Unlike storage errors,
-    this is a property of the *file content*, not the server state,
-    so the client could try a different file.
+    Maps to HTTP 422 Unprocessable Entity.
     """
 
 
@@ -79,6 +70,20 @@ class EmbeddingError(DocumentError):
         - Input batch is empty (programmer error, not user input)
 
     Maps to HTTP 500 Internal Server Error when surfaced through routes.
-    Unlike validation or parsing errors, embedding failures are server-side
-    problems — the client cannot fix them by sending different input.
-    """        
+    """
+
+
+class ChromaDBError(DocumentError):
+    """Raised when a ChromaDB operation fails.
+
+    Examples:
+        - Collection cannot be created or accessed
+        - Upsert fails due to disk full, permissions, or DB corruption
+        - Query returns malformed results (rare, indicates DB bug)
+        - Dimension mismatch detected between collection and incoming vectors
+
+    Maps to HTTP 500 Internal Server Error. Unlike validation errors,
+    these are server-side storage failures the client cannot fix by
+    sending different input. The detail message is sanitized in the
+    route handler to avoid leaking storage internals.
+    """
