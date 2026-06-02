@@ -17,7 +17,7 @@ codebase scalable, secure, and maintainable.
 
 from fastapi import FastAPI
 
-from api.routes import chat, documents
+from api.routes import chat, documents, rag_chat
 from api.utils.config import get_settings
 from api.utils.logger import logger
 
@@ -42,7 +42,8 @@ app = FastAPI(
 # Register the chat router. All endpoints defined in api/routes/chat.py
 # are now exposed under the main application.
 app.include_router(chat.router)    
-app.include_router(documents.router) 
+app.include_router(documents.router)
+app.include_router(rag_chat.router) 
 
 # Log the application startup with environment context.
 # This message confirms which environment is active and helps debug

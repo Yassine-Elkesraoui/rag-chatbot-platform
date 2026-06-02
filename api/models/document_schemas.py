@@ -1,6 +1,6 @@
-﻿"""Pydantic schemas for document upload and management endpoints.
+﻿"""Pydantic schemas for document upload, management, and RAG chat.
 
-These models define the request/response contracts for the documents API.
+These models define the request/response contracts for the API.
 Internal storage details (e.g., absolute file paths) are deliberately
 excluded from response models to prevent information disclosure.
 """
@@ -13,14 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DocumentStatus(str, Enum):
-    """Lifecycle states of an uploaded document.
-
-    Attributes:
-        UPLOADED: File saved to disk, awaiting processing.
-        PROCESSING: Document is being parsed, chunked, and embedded.
-        INDEXED: Chunks are stored in the vector DB and queryable.
-        FAILED: Processing failed; see logs for details.
-    """
+    """Lifecycle states of an uploaded document."""
 
     UPLOADED = "uploaded"
     PROCESSING = "processing"
@@ -53,13 +46,7 @@ class DocumentResponse(BaseModel):
 
 
 class DocumentChunk(BaseModel):
-    """A single text chunk extracted from a document.
-
-    Chunks are the unit of indexing and retrieval in the RAG pipeline.
-    Each chunk carries enough metadata to be traced back to its source
-    document and position, which is essential for citation in answers
-    and for debugging retrieval quality.
-    """
+    """A single text chunk extracted from a document, pre-embedding."""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -79,12 +66,7 @@ class DocumentChunk(BaseModel):
 
 
 class ProcessedDocumentResponse(BaseModel):
-    """Response returned after a document has been parsed, chunked, embedded, and persisted.
-
-    Returned by POST /documents/{document_id}/process. Carries summary
-    statistics plus the chunks themselves (without embedding vectors,
-    which are too large for verbose JSON responses).
-    """
+    """Response returned after a document has been parsed, chunked, embedded, and persisted."""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -106,13 +88,7 @@ class ProcessedDocumentResponse(BaseModel):
 
 
 class EmbeddedChunk(BaseModel):
-    """A document chunk with its embedding vector attached.
-
-    Distinct from DocumentChunk to keep the embedding step explicit in
-    type signatures. Code that operates on pre-embedding chunks takes
-    DocumentChunk; code that operates on chunks ready for retrieval
-    takes EmbeddedChunk.
-    """
+    """A document chunk with its embedding vector attached."""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -138,17 +114,7 @@ class EmbeddedChunk(BaseModel):
 
 
 class StoredChunk(BaseModel):
-    """A chunk as stored in (and retrieved from) the vector store.
-
-    Differs from EmbeddedChunk in two ways:
-    - Carries a stable chunk_id ("{document_id}::{index}") used as the
-      ChromaDB record key, enabling idempotent upserts.
-    - Does NOT carry the embedding vector. Retrieving N stored chunks
-      should not return N*384 floats by default; consumers who need
-      the vector can call the vector store directly.
-
-    This is the schema returned by GET /documents/{id}/chunks.
-    """
+    """A chunk as stored in (and retrieved from) the vector store, without its vector."""
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -163,9 +129,77 @@ class StoredChunk(BaseModel):
         }
     )
 
-    chunk_id: str = Field(..., min_length=1, description="Stable identifier in the form '{document_id}::{index}'. Used as the ChromaDB record key.")
+    chunk_id: str = Field(..., min_length=1, description="Stable identifier in the form '{document_id}::{index}'.")
     document_id: UUID = Field(..., description="UUID of the source document.")
     index: int = Field(..., ge=0, description="Zero-based position within the source document.")
     content: str = Field(..., min_length=1, description="The raw text content of the chunk.")
     char_count: int = Field(..., gt=0, description="Length of the chunk content in characters.")
     model_name: str = Field(..., description="HuggingFace identifier of the embedding model used to embed this chunk.")
+
+
+class RetrievedChunk(BaseModel):
+    """A chunk retrieved by semantic search, with its similarity score.
+
+    Completes the chunk data model:
+        DocumentChunk -> EmbeddedChunk -> StoredChunk -> RetrievedChunk
+
+    The score is cosine similarity in [0, 1] for normalized embeddings;
+    higher means more relevant to the query. Returned as part of a RAG
+    response so callers can inspect (and cite) the sources behind an answer.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "chunk_id": "550e8400-e29b-41d4-a716-446655440000::3",
+                "document_id": "550e8400-e29b-41d4-a716-446655440000",
+                "index": 3,
+                "content": "The relevant passage that matched the query...",
+                "score": 0.7421,
+            }
+        }
+    )
+
+    chunk_id: str = Field(..., min_length=1, description="Stable identifier in the form '{document_id}::{index}'.")
+    document_id: UUID = Field(..., description="UUID of the source document.")
+    index: int = Field(..., ge=0, description="Zero-based position within the source document.")
+    content: str = Field(..., min_length=1, description="The text content of the retrieved chunk.")
+    score: float = Field(..., description="Cosine similarity to the query in [0, 1]. Higher is more relevant.")
+
+
+class RAGChatRequest(BaseModel):
+    """Request body for the RAG-enabled chat endpoint."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "question": "Como recupero a minha senha do Portal das Financas?",
+                "document_id": None,
+                "top_k": 4,
+            }
+        }
+    )
+
+    question: str = Field(..., min_length=1, max_length=2000, description="The user's question.")
+    document_id: UUID | None = Field(default=None, description="Optional: scope retrieval to a single document. If omitted, searches the whole corpus.")
+    top_k: int | None = Field(default=None, ge=1, le=20, description="Optional: number of chunks to retrieve. Falls back to the configured default if omitted.")
+
+
+class RAGChatResponse(BaseModel):
+    """Response from the RAG-enabled chat endpoint."""
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "answer": "Para recuperar a senha, aceda ao Portal das Financas e...",
+                "grounded": True,
+                "sources": [],
+                "model": "phi3",
+            }
+        }
+    )
+
+    answer: str = Field(..., description="The generated answer.")
+    grounded: bool = Field(..., description="True if the answer was generated using retrieved context. False if no chunk cleared the relevance threshold and the model answered from its own knowledge.")
+    sources: list[RetrievedChunk] = Field(..., description="The chunks used as context, ordered by relevance. Empty when grounded is False.")
+    model: str = Field(..., description="Identifier of the LLM that generated the answer.")

@@ -19,37 +19,11 @@ class Settings(BaseSettings):
 
     Pydantic automatically reads values from the .env file at module import
     time, validates their types, and exposes them as typed attributes.
-
-    Attributes:
-        app_name: Human-readable application identifier.
-        app_version: Semantic version string (major.minor.patch).
-        app_env: Deployment environment (development | staging | production).
-        api_host: Network interface the API binds to.
-        api_port: Port number the API listens on.
-        log_level: Minimum log severity (DEBUG | INFO | WARNING | ERROR).
-
-        ollama_model: Identifier of the Ollama model to use for inference.
-        ollama_temperature: Sampling temperature (0.0 = deterministic, 1.0 = creative).
-        ollama_max_tokens: Maximum number of tokens to generate per response.
-
-        chunk_size: Target character length for text chunks.
-        chunk_overlap: Number of overlapping characters between adjacent chunks.
-
-        embedding_model_name: HuggingFace identifier of the embedding model.
-        embedding_batch_size: Batch size for encode calls.
-        embedding_dimension: Output vector dimensionality of the model.
-        embedding_normalize: Whether to L2-normalize embeddings at encode time.
-        embedding_device: PyTorch device string (cpu | cuda | mps).
-        model_cache_dir: Local directory for HuggingFace model files.
-
-        upload_dir: Local directory where uploaded files are saved.
-        chroma_persist_dir: Local directory where ChromaDB persists its data.
-        chroma_collection_name: Name of the ChromaDB collection that stores all chunks.
     """
 
     # ── Application metadata ───────────────────────────────────────
     app_name: str = "RAG Chatbot Platform"
-    app_version: str = "0.6.0"
+    app_version: str = "0.7.0"
     app_env: str = "development"
 
     # ── API server configuration ───────────────────────────────────
@@ -81,6 +55,10 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "data/chroma"
     chroma_collection_name: str = "document_chunks"
 
+    # ── Retrieval configuration ────────────────────────────────────
+    retrieval_top_k: int = 4
+    retrieval_min_score: float = 0.3
+
     # ── Pydantic configuration ─────────────────────────────────────
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -95,8 +73,7 @@ def get_settings() -> Settings:
     """Factory function returning a cached Settings instance.
 
     The `@lru_cache` decorator ensures Settings is instantiated only once
-    per process — subsequent calls return the same object. This avoids
-    repeatedly re-parsing the .env file on every API request.
+    per process, avoiding repeated .env parsing on every API request.
 
     Returns:
         The singleton Settings instance.
