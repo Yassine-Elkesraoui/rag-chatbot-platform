@@ -1,4 +1,4 @@
-﻿"""config.py
+"""config.py
 Centralized application configuration using pydantic-settings.
 
 All configuration values are loaded from environment variables (or .env file)
@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # ── Retrieval configuration ────────────────────────────────────
     retrieval_top_k: int = 4
     retrieval_min_score: float = 0.3
+    # ── Evaluation results configuration ───────────────────────────
+    eval_results_dir: str = "eval/results"
+    eval_scored_030: str = "scored_030.json"
+    eval_scored_050: str = "scored_050.json"
 
     # ── Pydantic configuration ─────────────────────────────────────
     model_config = SettingsConfigDict(
