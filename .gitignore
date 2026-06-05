@@ -65,3 +65,9 @@ chroma_db/
 models/    
 # ChromaDB persistence (regenerated on document processing)
 data/chroma/
+
+# Day 14-15 scratch: judge-migration probes and backups
+*.bak
+probe_*.py
+list_models.py
+test_gemini_key.py
