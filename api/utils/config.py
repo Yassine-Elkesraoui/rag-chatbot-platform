@@ -33,6 +33,17 @@ class Settings(BaseSettings):
 
     # ── Ollama / Phi-3 Mini configuration ──────────────────────────
     ollama_model: str = "phi3"
+    # ── LLM provider selection ─────────────────────────────────────
+    # "ollama" = local Phi-3 (private, on-host, used for evaluation).
+    # "cerebras" = hosted gpt-oss-120b via OpenAI-compatible API
+    # (fast, used for the public cloud demo). The application code is
+    # provider-agnostic; only this switch changes which LLM is called.
+    llm_provider: str = "ollama"
+    cerebras_model: str = "gpt-oss-120b"
+    cerebras_base_url: str = "https://api.cerebras.ai/v1"
+    cerebras_max_tokens: int = 1024
+    cerebras_temperature: float = 0.7
+    cerebras_api_key: str = ""  # loaded from .env / Space secret; never hardcoded
     ollama_temperature: float = 0.7
     ollama_max_tokens: int = 512
 

@@ -1,4 +1,4 @@
-﻿"""Retrieval-Augmented Generation orchestration service.
+"""Retrieval-Augmented Generation orchestration service.
 
 Coordinates the full RAG flow for a user question:
     1. Embed the question into a query vector.
@@ -29,7 +29,8 @@ from uuid import UUID
 
 from api.models.document_schemas import RAGChatResponse, RetrievedChunk
 from api.services.embedding_service import EmbeddingService, get_embedding_service
-from api.services.ollama_service import OllamaService, get_ollama_service
+from api.services.ollama_service import OllamaService
+from api.services.llm_provider import get_llm_service
 from api.services.vector_store_service import (
     VectorStoreService,
     get_vector_store_service,
@@ -222,6 +223,6 @@ def get_rag_service() -> RAGService:
             settings=get_settings(),
             embedding_service=get_embedding_service(),
             vector_store=get_vector_store_service(),
-            ollama_service=get_ollama_service(),
+            ollama_service=get_llm_service(),
         )
     return _rag_service_singleton

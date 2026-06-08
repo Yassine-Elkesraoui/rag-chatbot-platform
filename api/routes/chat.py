@@ -29,6 +29,7 @@ from api.services.ollama_service import (
     OllamaService,
     get_ollama_service,
 )
+from api.services.llm_provider import get_llm_service
 from api.utils.logger import setup_logger
 
 
@@ -60,7 +61,7 @@ router = APIRouter(tags=["Chat"])
 )
 def chat(
     request: ChatRequest,
-    ollama: OllamaService = Depends(get_ollama_service),
+    ollama: OllamaService = Depends(get_llm_service),
 ) -> ChatResponse:
     """
     Process a chat request by delegating generation to the Ollama service.
