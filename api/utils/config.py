@@ -12,6 +12,7 @@ application via the `get_settings()` factory function.
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 
 class Settings(BaseSettings):
@@ -74,6 +75,10 @@ class Settings(BaseSettings):
     eval_scored_030: str = "scored_030.json"
     eval_scored_050: str = "scored_050.json"
 
+    @field_validator("app_env", mode="after")
+    @classmethod
+    def _strip_app_env(cls, v: str) -> str:
+        return v.strip() if isinstance(v, str) else v
     # ── Pydantic configuration ─────────────────────────────────────
     model_config = SettingsConfigDict(
         env_file=".env",
