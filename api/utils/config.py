@@ -23,7 +23,7 @@ class Settings(BaseSettings):
 
     # ── Application metadata ───────────────────────────────────────
     app_name: str = "RAG Chatbot Platform"
-    app_version: str = "0.7.0"
+    app_version: str = "1.0.0"
     app_env: str = "development"
 
     # ── API server configuration ───────────────────────────────────
