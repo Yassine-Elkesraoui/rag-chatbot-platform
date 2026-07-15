@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     # ── Document upload configuration ──────────────────────────────
     upload_dir: str = "data/uploads"
 
+    # ── Corpus seeding configuration ───────────────────────────────
+    # Directory of corpus files baked into the image. On startup, if
+    # the vector store is empty, these are ingested automatically
+    # (self-healing for ephemeral deployments like HF Spaces).
+    corpus_dir: str = "eval/corpus"
+
     # ── Document chunking configuration ────────────────────────────
     chunk_size: int = 1000
     chunk_overlap: int = 200

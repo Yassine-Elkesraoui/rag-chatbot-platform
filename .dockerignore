@@ -12,10 +12,12 @@ data/temp/
 
 # Evaluation artifacts: exclude bulk, but keep the two scored result
 # files so the /eval/dashboard route works in the deployed container.
+# The corpus texts in eval/corpus/ are deliberately INCLUDED in the
+# image: the app seeds them into the vector store on startup when the
+# store is empty (see api/services/seed_service.py).
 eval/results/*
 !eval/results/scored_030.json
 !eval/results/scored_050.json
-eval/corpus/
 
 # Secrets and local config
 .env

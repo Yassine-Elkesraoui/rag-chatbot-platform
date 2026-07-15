@@ -15,9 +15,12 @@ follows the 12-Factor App methodology (Wiggins, 2017) and keeps the
 codebase scalable, secure, and maintainable.
 """
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from api.routes import chat, documents, eval_dashboard, rag_chat
+from api.services.seed_service import seed_corpus_if_empty
 from api.utils.config import get_settings
 from api.utils.logger import logger
 
@@ -28,7 +31,21 @@ from api.utils.logger import logger
 # This eliminates hardcoded values from the source code and enables
 # environment-specific configuration without code changes.
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: runs once before the server starts serving.
+
+    Seeds the vector store from the baked-in corpus when it is empty
+    (self-healing on ephemeral filesystems such as HF Spaces).
+    """
+    seed_corpus_if_empty()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.app_name,
     description=(
         "Master's Thesis Project — Mohamed Yassine El Kesraoui, "
