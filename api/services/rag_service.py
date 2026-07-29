@@ -29,8 +29,7 @@ from uuid import UUID
 
 from api.models.document_schemas import RAGChatResponse, RetrievedChunk
 from api.services.embedding_service import EmbeddingService, get_embedding_service
-from api.services.ollama_service import OllamaService
-from api.services.llm_provider import get_llm_service
+from api.services.llm_provider import LLMService, get_llm_service
 from api.services.vector_store_service import (
     VectorStoreService,
     get_vector_store_service,
@@ -65,7 +64,7 @@ class RAGService:
         settings: Settings,
         embedding_service: EmbeddingService,
         vector_store: VectorStoreService,
-        ollama_service: OllamaService,
+        llm_service: LLMService,
     ) -> None:
         """Initialize with the services this orchestrator composes.
 
@@ -74,14 +73,19 @@ class RAGService:
                 and retrieval_min_score.
             embedding_service: For embedding the user question.
             vector_store: For similarity search over stored chunks.
-            ollama_service: For LLM generation.
+            llm_service: For LLM generation. Any provider that
+                satisfies the LLMService protocol (OllamaService
+                locally, CerebrasService when hosted).
         """
         self._default_top_k: int = settings.retrieval_top_k
         self._min_score: float = settings.retrieval_min_score
         self._embedding_service = embedding_service
         self._vector_store = vector_store
-        self._ollama_service = ollama_service
-        self._model_name: str = settings.ollama_model
+        self._llm_service = llm_service
+        # Report the ACTIVE provider's model instead of a hardcoded
+        # default: the name travels with the injected service, so
+        # switching LLM_PROVIDER changes what responses report.
+        self._model_name: str = llm_service.model_name
 
         logger.info(
             "RAGService ready: default_top_k=%d, min_score=%.2f, model=%s",
@@ -157,7 +161,7 @@ class RAGService:
             len(sources),
             sources[0].score,
         )
-        answer = self._ollama_service.generate_answer(prompt)
+        answer = self._llm_service.generate_answer(prompt)
 
         return RAGChatResponse(
             answer=answer,
@@ -193,7 +197,7 @@ class RAGService:
             candidates_seen,
             self._min_score,
         )
-        answer = self._ollama_service.generate_answer(question)
+        answer = self._llm_service.generate_answer(question)
 
         return RAGChatResponse(
             answer=answer,
@@ -214,7 +218,7 @@ def get_rag_service() -> RAGService:
     """Return the process-wide singleton RAGService.
 
     Lazily constructed on first call, composing the embedding, vector
-    store, and Ollama service singletons. Use via FastAPI's Depends()
+    store, and active LLM provider singletons. Use via FastAPI's Depends()
     in route handlers.
     """
     global _rag_service_singleton
@@ -223,6 +227,6 @@ def get_rag_service() -> RAGService:
             settings=get_settings(),
             embedding_service=get_embedding_service(),
             vector_store=get_vector_store_service(),
-            ollama_service=get_llm_service(),
+            llm_service=get_llm_service(),
         )
     return _rag_service_singleton

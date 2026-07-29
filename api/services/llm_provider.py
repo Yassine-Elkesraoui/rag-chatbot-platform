@@ -15,6 +15,7 @@ Both expose the same informal interface:
 
     generate_answer(question: str) -> str
     health_check() -> bool
+    model_name: str   (attribute naming the model actually in use)
 
 Because the two are structurally interchangeable (duck typing), the rest
 of the application depends only on this interface, never on a concrete
@@ -47,6 +48,9 @@ class LLMService(Protocol):
     Declared as a typing.Protocol so existing services conform without
     needing to inherit from it — they already implement these methods.
     """
+
+    model_name: str
+    """Identifier of the model this provider actually generates with."""
 
     def generate_answer(self, question: str) -> str: ...
     def health_check(self) -> bool: ...
