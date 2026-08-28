@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api.routes import chat, documents, eval_dashboard, rag_chat
+from api.routes import chat, chat_ui, documents, eval_dashboard, rag_chat
 from api.services.seed_service import seed_corpus_if_empty
 from api.utils.config import get_settings
 from api.utils.logger import logger
@@ -61,7 +61,8 @@ app = FastAPI(
 app.include_router(chat.router)    
 app.include_router(documents.router)
 app.include_router(rag_chat.router)
-app.include_router(eval_dashboard.router) 
+app.include_router(eval_dashboard.router)
+app.include_router(chat_ui.router)
 
 # Log the application startup with environment context.
 # This message confirms which environment is active and helps debug
